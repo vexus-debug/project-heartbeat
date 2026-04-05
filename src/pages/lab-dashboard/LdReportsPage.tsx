@@ -436,25 +436,27 @@ export default function LdReportsPage() {
           </Card>
         </TabsContent>
 
-        {/* F. Sales by Product - Top 5 bold */}
+        {/* F. Sales by Work Type - Top 5 bold */}
         <TabsContent value="sales-product">
           <Card className="border-border/50">
-            <CardHeader><CardTitle className="text-base">Monthly Sales by Product — Top 5 Highlighted</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-base">Monthly Sales by Work Type — Top 5 Highlighted</CardTitle></CardHeader>
             <CardContent>
               <table className="w-full text-sm">
                 <thead><tr className="border-b bg-muted/30">
                   <th className="text-left p-3 font-medium text-muted-foreground">#</th>
-                  <th className="text-left p-3 font-medium text-muted-foreground">Product</th>
+                  <th className="text-left p-3 font-medium text-muted-foreground">Work Type</th>
                   <th className="text-right p-3 font-medium text-muted-foreground">Units</th>
                   <th className="text-right p-3 font-medium text-muted-foreground">Revenue</th>
+                  <th className="text-right p-3 font-medium text-muted-foreground">Avg/Unit</th>
                 </tr></thead>
                 <tbody>
                   {salesByProduct.map((p, idx) => (
                     <tr key={p.name} className={`border-b border-border/30 ${idx < 5 ? "font-bold bg-primary/5" : ""}`}>
                       <td className="p-3">{idx + 1}{idx < 5 && <Badge className="ml-1 text-[9px]">TOP</Badge>}</td>
                       <td className="p-3">{p.name}</td>
-                      <td className="p-3 text-right">{p.count}</td>
-                      <td className="p-3 text-right">{fmt(p.sales)}</td>
+                      <td className="p-3 text-right">{p.totalUnits}</td>
+                      <td className="p-3 text-right">{fmt(p.totalPrice)}</td>
+                      <td className="p-3 text-right text-muted-foreground">{fmt(p.avgPricePerUnit)}</td>
                     </tr>
                   ))}
                 </tbody>
