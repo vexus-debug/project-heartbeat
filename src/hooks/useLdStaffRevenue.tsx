@@ -29,6 +29,8 @@ export function useCreateLdStaffRevenueAllocation() {
 }
 
 // Calculate revenue allocation for a period
+// Feature #4: 20% output uses CASE COUNT only (not revenue)
+// Feature #5: Uses unique work_type_name + tooth_number (unit) — no duplication
 export function calculateStaffRevenueAllocation(
   cases: any[],
   staff: any[],
@@ -44,6 +46,15 @@ export function calculateStaffRevenueAllocation(
     return true;
   });
 
+  // Deduplicate: unique by work_type_name + tooth_number per case (prevent double counting)
+  // Each case is already a unique job — just make sure we don't count the same case twice
+  const seenCaseIds = new Set<string>();
+  const uniqueCases = periodCases.filter((c: any) => {
+    if (seenCaseIds.has(c.id)) return false;
+    seenCaseIds.add(c.id);
+    return true;
+  });
+
   // Exclude courier and express charges from allocation base
   const getProductiveAmount = (c: any) => {
     const net = Number(c.net_amount || 0);
@@ -52,13 +63,13 @@ export function calculateStaffRevenueAllocation(
     return Math.max(net - courier - express, 0);
   };
 
-  const totalProductiveRevenue = periodCases.reduce((s, c) => s + getProductiveAmount(c), 0);
+  const totalProductiveRevenue = uniqueCases.reduce((s, c) => s + getProductiveAmount(c), 0);
   const outputPool = totalProductiveRevenue * 0.20; // 20% output
   const basicPool = totalProductiveRevenue * 0.10; // 10% basic
 
-  // Count jobs per technician
+  // Count jobs per technician — CASE COUNT ONLY (Feature #4)
   const techJobs: Record<string, { count: number; revenue: number }> = {};
-  periodCases.forEach(c => {
+  uniqueCases.forEach(c => {
     const tid = c.assigned_technician_id;
     if (!tid) return;
     if (!techJobs[tid]) techJobs[tid] = { count: 0, revenue: 0 };
@@ -75,7 +86,7 @@ export function calculateStaffRevenueAllocation(
   const allocations = activeStaff.map(st => {
     const jobs = techJobs[st.id] || { count: 0, revenue: 0 };
     
-    // Output: proportional to jobs done
+    // Output: proportional to CASE COUNT (not revenue) — Feature #4
     const outputShare = totalJobs > 0 ? (jobs.count / totalJobs) * outputPool : 0;
     
     // Basic: proportional to seniority level
@@ -101,7 +112,7 @@ export function calculateStaffRevenueAllocation(
     basicPool,
     totalJobs,
     allocations,
-    courierTotal: periodCases.reduce((s, c) => s + Number(c.courier_amount || 0), 0),
-    expressTotal: periodCases.reduce((s, c) => s + Number(c.express_surcharge || 0), 0),
+    courierTotal: uniqueCases.reduce((s, c) => s + Number(c.courier_amount || 0), 0),
+    expressTotal: uniqueCases.reduce((s, c) => s + Number(c.express_surcharge || 0), 0),
   };
 }

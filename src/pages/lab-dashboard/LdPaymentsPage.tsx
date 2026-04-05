@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus } from "lucide-react";
 import { useLdPayments, useCreateLdPayment, useLdInvoices, useLdClients } from "@/hooks/useLabDashboard";
 import { format } from "date-fns";
@@ -15,21 +16,31 @@ export default function LdPaymentsPage() {
   const { data: clients = [] } = useLdClients();
   const createPayment = useCreateLdPayment();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [selectedClientId, setSelectedClientId] = useState("all");
 
-  const unpaidInvoices = invoices.filter((i: any) => i.status !== "paid");
+  // Filter unpaid invoices and optionally by selected client
+  const unpaidInvoices = useMemo(() => {
+    return invoices.filter((i: any) => {
+      const isUnpaid = i.status !== "paid";
+      const matchClient = selectedClientId === "all" || i.client_id === selectedClientId;
+      return isUnpaid && matchClient;
+    });
+  }, [invoices, selectedClientId]);
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
+    const invoiceId = fd.get("invoice_id") as string;
+    if (!invoiceId) return;
     const values = {
-      invoice_id: fd.get("invoice_id") as string,
+      invoice_id: invoiceId,
       amount: Number(fd.get("amount") || 0),
       payment_method: fd.get("payment_method") as string,
       payment_date: (fd.get("payment_date") as string) || new Date().toISOString().split("T")[0],
       reference: fd.get("reference") as string,
       remark: fd.get("remark") as string,
     };
-    createPayment.mutate(values, { onSuccess: () => setDialogOpen(false) });
+    createPayment.mutate(values, { onSuccess: () => { setDialogOpen(false); setSelectedClientId("all"); } });
   };
 
   return (
@@ -39,35 +50,45 @@ export default function LdPaymentsPage() {
           <h1 className="text-2xl font-bold text-foreground">Payments</h1>
           <p className="text-sm text-muted-foreground">Impression n Teeth — Payment tracking</p>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) setSelectedClientId("all"); }}>
           <DialogTrigger asChild>
             <Button><Plus className="h-4 w-4 mr-1" /> Record Payment</Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader><DialogTitle>Record Payment</DialogTitle></DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-3">
+              {/* Step 1: Optionally filter by client */}
               <div>
-                <Label>Invoice *</Label>
+                <Label>Step 1: Filter by Clinic / Client (optional)</Label>
+                <Select value={selectedClientId} onValueChange={setSelectedClientId}>
+                  <SelectTrigger><SelectValue placeholder="All clients" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Clients</SelectItem>
+                    {clients.map((c: any) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.clinic_code ? `[${c.clinic_code}] ` : ""}{c.clinic_name} — {c.doctor_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[10px] text-muted-foreground mt-0.5">Narrow down the invoice list by selecting a client first</p>
+              </div>
+
+              {/* Step 2: Select the invoice to allocate payment */}
+              <div>
+                <Label>Step 2: Select Invoice to Pay *</Label>
                 <select name="invoice_id" required className="w-full border rounded-md p-2 text-sm bg-background">
-                  <option value="">Select invoice...</option>
+                  <option value="">— Choose an unpaid invoice —</option>
+                  {unpaidInvoices.length === 0 && <option disabled>No unpaid invoices{selectedClientId !== "all" ? " for this client" : ""}</option>}
                   {unpaidInvoices.map((i: any) => (
                     <option key={i.id} value={i.id}>
                       {i.invoice_number} — {i.client?.clinic_name || i.patient_name || "Unknown"} — ₦{Number(i.total_amount - i.amount_paid).toLocaleString()} outstanding
                     </option>
                   ))}
                 </select>
+                <p className="text-[10px] text-muted-foreground mt-0.5">This payment will be allocated against the selected invoice</p>
               </div>
-              <div>
-                <Label>Clinic / Client</Label>
-                <select name="client_selector" className="w-full border rounded-md p-2 text-sm bg-background">
-                  <option value="">— Select to filter invoices —</option>
-                  {clients.map((c: any) => (
-                    <option key={c.id} value={c.id}>
-                      {c.clinic_code ? `[${c.clinic_code}] ` : ""}{c.clinic_name} — {c.doctor_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label>Amount (₦) *</Label>
@@ -86,8 +107,8 @@ export default function LdPaymentsPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label>Payment Date *</Label>
-                  <Input name="payment_date" type="date" defaultValue={new Date().toISOString().split("T")[0]} />
-                  <p className="text-[10px] text-muted-foreground mt-1">Editable — backdate if needed</p>
+                  <Input name="payment_date" type="date" required defaultValue={new Date().toISOString().split("T")[0]} />
+                  <p className="text-[10px] text-muted-foreground mt-0.5">Editable — backdate if needed</p>
                 </div>
                 <div>
                   <Label>Reference</Label>

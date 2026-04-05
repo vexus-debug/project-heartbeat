@@ -76,20 +76,33 @@ export default function LdReportsPage() {
     });
   }, [invoices, payments, cases, expenses, months]);
 
-  // A. Product-wise P&L
-  const productPnL = useMemo(() => {
+  // A. Work Type Report — unique by work_type_name, uses unit count (tooth_number)
+  // Feature #3: Clear report based on WORK TYPE NAME only
+  // Feature #5: Uses work_type_name + unit numbers, no repetition
+  const workTypeReport = useMemo(() => {
     const monthCases = cases.filter((c: any) => {
       const d = new Date(c.created_at);
       return d >= selectedMonthStart && d <= selectedMonthEnd;
     });
-    const map: Record<string, { sales: number; count: number }> = {};
-    monthCases.forEach((c: any) => {
+    // Deduplicate by case id
+    const seenIds = new Set<string>();
+    const unique = monthCases.filter((c: any) => { if (seenIds.has(c.id)) return false; seenIds.add(c.id); return true; });
+    
+    const map: Record<string, { totalUnits: number; totalPrice: number; caseCount: number }> = {};
+    unique.forEach((c: any) => {
       const name = c.work_type_name || "Unknown";
-      if (!map[name]) map[name] = { sales: 0, count: 0 };
-      map[name].sales += Number(c.net_amount || 0);
-      map[name].count++;
+      const units = Number(c.tooth_number) || 1;
+      const price = Number(c.net_amount || 0);
+      if (!map[name]) map[name] = { totalUnits: 0, totalPrice: 0, caseCount: 0 };
+      map[name].totalUnits += units;
+      map[name].totalPrice += price;
+      map[name].caseCount++;
     });
-    return Object.entries(map).map(([name, data]) => ({ name, ...data })).sort((a, b) => b.sales - a.sales);
+    return Object.entries(map).map(([name, data]) => ({
+      name,
+      ...data,
+      avgPricePerUnit: data.totalUnits > 0 ? Math.round(data.totalPrice / data.totalUnits) : 0,
+    })).sort((a, b) => b.totalPrice - a.totalPrice);
   }, [cases, selectedMonthStart, selectedMonthEnd]);
 
   // B. Monthly expenses
@@ -126,8 +139,8 @@ export default function LdReportsPage() {
   // E. Monthly sales by client - top 5 bold
   const salesByClient = clientSalesReport;
 
-  // F. Monthly sales by product - top 5 bold
-  const salesByProduct = productPnL;
+  // F. Monthly sales by product - top 5 bold (uses workTypeReport)
+  const salesByProduct = workTypeReport;
 
   // Revenue allocation - use custom date range if set, otherwise use selected month
   const allocStart = allocDateFrom || selectedMonthStart;
@@ -182,7 +195,8 @@ export default function LdReportsPage() {
   const totalCollected = payments.reduce((s: number, p: any) => s + Number(p.amount || 0), 0);
   const totalExpensesAll = expenses.reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
   const totalCreditsAmt = creditNotes.filter((cn: any) => cn.type === "credit").reduce((s: number, cn: any) => s + Number(cn.amount), 0);
-  const totalMonthSales = productPnL.reduce((s, p) => s + p.sales, 0);
+  const totalMonthSales = workTypeReport.reduce((s, p) => s + p.totalPrice, 0);
+  const totalMonthUnits = workTypeReport.reduce((s, p) => s + p.totalUnits, 0);
   const monthGrossProfit = totalMonthSales - totalMonthExpenses;
 
   return (
@@ -220,55 +234,61 @@ export default function LdReportsPage() {
 
       <Tabs defaultValue="pnl" className="space-y-4">
         <TabsList className="flex flex-wrap">
-          <TabsTrigger value="pnl">Product P&L</TabsTrigger>
+          <TabsTrigger value="pnl">Work Type Report</TabsTrigger>
           <TabsTrigger value="stock-pnl">P&L with Stock</TabsTrigger>
           <TabsTrigger value="expenses">Monthly Expenses</TabsTrigger>
           <TabsTrigger value="client-sales">Client Sales</TabsTrigger>
           <TabsTrigger value="sales-client">Sales by Client</TabsTrigger>
-          <TabsTrigger value="sales-product">Sales by Product</TabsTrigger>
+          <TabsTrigger value="sales-product">Sales by Work Type</TabsTrigger>
           <TabsTrigger value="revenue-alloc">Revenue Allocation</TabsTrigger>
           <TabsTrigger value="charts">Trend Charts</TabsTrigger>
           <TabsTrigger value="export">Export</TabsTrigger>
         </TabsList>
 
-        {/* A. Product-wise P&L */}
+        {/* A. Work Type Report — Feature #3 & #5 */}
         <TabsContent value="pnl">
           <Card className="border-border/50">
             <CardHeader>
-              <CardTitle className="text-base">Product-wise P&L — {format(selectedMonthStart, "MMMM yyyy")}</CardTitle>
-              <CardDescription>Sales, costs, and net profit by work type</CardDescription>
+              <CardTitle className="text-base">Work Type Report — {format(selectedMonthStart, "MMMM yyyy")}</CardTitle>
+              <CardDescription>Revenue by Work Type Name with unit count (no duplication)</CardDescription>
             </CardHeader>
             <CardContent>
               <table className="w-full text-sm">
                 <thead><tr className="border-b bg-muted/30">
-                  <th className="text-left p-3 font-medium text-muted-foreground">Product</th>
-                  <th className="text-right p-3 font-medium text-muted-foreground">Units</th>
-                  <th className="text-right p-3 font-medium text-muted-foreground">Sales (+)</th>
+                  <th className="text-left p-3 font-medium text-muted-foreground">Work Type</th>
+                  <th className="text-right p-3 font-medium text-muted-foreground">Cases</th>
+                  <th className="text-right p-3 font-medium text-muted-foreground">Total Units</th>
+                  <th className="text-right p-3 font-medium text-muted-foreground">Total Price (₦)</th>
+                  <th className="text-right p-3 font-medium text-muted-foreground">Avg / Unit</th>
                 </tr></thead>
                 <tbody>
-                  {productPnL.map(p => (
+                  {workTypeReport.map(p => (
                     <tr key={p.name} className="border-b border-border/30">
-                      <td className="p-3">{p.name}</td>
-                      <td className="p-3 text-right">{p.count}</td>
-                      <td className="p-3 text-right font-medium text-emerald-600">{fmt(p.sales)}</td>
+                      <td className="p-3 font-medium">{p.name}</td>
+                      <td className="p-3 text-right">{p.caseCount}</td>
+                      <td className="p-3 text-right">{p.totalUnits}</td>
+                      <td className="p-3 text-right text-emerald-600">{fmt(p.totalPrice)}</td>
+                      <td className="p-3 text-right text-muted-foreground">{fmt(p.avgPricePerUnit)}</td>
                     </tr>
                   ))}
-                  {productPnL.length === 0 && <tr><td colSpan={3} className="p-8 text-center text-muted-foreground">No data for this month</td></tr>}
+                  {workTypeReport.length === 0 && <tr><td colSpan={5} className="p-8 text-center text-muted-foreground">No data for this month</td></tr>}
                 </tbody>
                 <tfoot>
                   <tr className="border-t-2 border-border font-semibold">
-                    <td className="p-3">Gross Sales</td>
-                    <td className="p-3 text-right">{productPnL.reduce((s, p) => s + p.count, 0)}</td>
+                    <td className="p-3">Totals</td>
+                    <td className="p-3 text-right">{workTypeReport.reduce((s, p) => s + p.caseCount, 0)}</td>
+                    <td className="p-3 text-right">{totalMonthUnits}</td>
                     <td className="p-3 text-right text-emerald-600">{fmt(totalMonthSales)}</td>
+                    <td className="p-3 text-right text-muted-foreground">{totalMonthUnits > 0 ? fmt(Math.round(totalMonthSales / totalMonthUnits)) : "—"}</td>
                   </tr>
                   <tr className="text-destructive">
                     <td className="p-3">Less: Expenses</td>
-                    <td></td>
+                    <td colSpan={3}></td>
                     <td className="p-3 text-right">-{fmt(totalMonthExpenses)}</td>
                   </tr>
                   <tr className="border-t-2 font-bold text-lg">
                     <td className="p-3">Net Profit / (Loss)</td>
-                    <td></td>
+                    <td colSpan={3}></td>
                     <td className={`p-3 text-right ${monthGrossProfit >= 0 ? "text-emerald-600" : "text-destructive"}`}>
                       {monthGrossProfit >= 0 ? fmt(monthGrossProfit) : `(${fmt(Math.abs(monthGrossProfit))})`}
                     </td>
@@ -416,25 +436,27 @@ export default function LdReportsPage() {
           </Card>
         </TabsContent>
 
-        {/* F. Sales by Product - Top 5 bold */}
+        {/* F. Sales by Work Type - Top 5 bold */}
         <TabsContent value="sales-product">
           <Card className="border-border/50">
-            <CardHeader><CardTitle className="text-base">Monthly Sales by Product — Top 5 Highlighted</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-base">Monthly Sales by Work Type — Top 5 Highlighted</CardTitle></CardHeader>
             <CardContent>
               <table className="w-full text-sm">
                 <thead><tr className="border-b bg-muted/30">
                   <th className="text-left p-3 font-medium text-muted-foreground">#</th>
-                  <th className="text-left p-3 font-medium text-muted-foreground">Product</th>
+                  <th className="text-left p-3 font-medium text-muted-foreground">Work Type</th>
                   <th className="text-right p-3 font-medium text-muted-foreground">Units</th>
                   <th className="text-right p-3 font-medium text-muted-foreground">Revenue</th>
+                  <th className="text-right p-3 font-medium text-muted-foreground">Avg/Unit</th>
                 </tr></thead>
                 <tbody>
                   {salesByProduct.map((p, idx) => (
                     <tr key={p.name} className={`border-b border-border/30 ${idx < 5 ? "font-bold bg-primary/5" : ""}`}>
                       <td className="p-3">{idx + 1}{idx < 5 && <Badge className="ml-1 text-[9px]">TOP</Badge>}</td>
                       <td className="p-3">{p.name}</td>
-                      <td className="p-3 text-right">{p.count}</td>
-                      <td className="p-3 text-right">{fmt(p.sales)}</td>
+                      <td className="p-3 text-right">{p.totalUnits}</td>
+                      <td className="p-3 text-right">{fmt(p.totalPrice)}</td>
+                      <td className="p-3 text-right text-muted-foreground">{fmt(p.avgPricePerUnit)}</td>
                     </tr>
                   ))}
                 </tbody>

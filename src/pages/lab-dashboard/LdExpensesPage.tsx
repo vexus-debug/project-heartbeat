@@ -1,14 +1,13 @@
 import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Pencil, Trash2, Search, DollarSign, TrendingDown } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, DollarSign, TrendingDown, ArrowUpDown, CalendarIcon } from "lucide-react";
 import { useLdExpenses, useCreateLdExpense, useUpdateLdExpense, useDeleteLdExpense } from "@/hooks/useLdExpenses";
-import { AnimatedCounter } from "@/components/dashboard/AnimatedCounter";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 
 const fmt = (v: number) => `₦${v.toLocaleString()}`;
@@ -24,6 +23,9 @@ export default function LdExpensesPage() {
   const [editExpense, setEditExpense] = useState<any>(null);
   const [search, setSearch] = useState("");
   const [filterCategory, setFilterCategory] = useState("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
   const now = new Date();
   const monthStart = startOfMonth(now);
@@ -34,17 +36,28 @@ export default function LdExpensesPage() {
     .filter((e: any) => new Date(e.expense_date) >= monthStart && new Date(e.expense_date) <= monthEnd)
     .reduce((s: number, e: any) => s + Number(e.amount), 0);
 
-  const filtered = expenses.filter((e: any) => {
-    const matchSearch = !search || e.vendor?.toLowerCase().includes(search.toLowerCase()) || e.description?.toLowerCase().includes(search.toLowerCase());
-    const matchCategory = filterCategory === "all" || e.category === filterCategory;
-    return matchSearch && matchCategory;
-  });
+  const filtered = expenses
+    .filter((e: any) => {
+      const matchSearch = !search || e.vendor?.toLowerCase().includes(search.toLowerCase()) || e.description?.toLowerCase().includes(search.toLowerCase());
+      const matchCategory = filterCategory === "all" || e.category === filterCategory;
+      const matchDateFrom = !dateFrom || e.expense_date >= dateFrom;
+      const matchDateTo = !dateTo || e.expense_date <= dateTo;
+      return matchSearch && matchCategory && matchDateFrom && matchDateTo;
+    })
+    .sort((a: any, b: any) => {
+      const cmp = a.expense_date.localeCompare(b.expense_date);
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+
+  const filteredTotal = filtered.reduce((s: number, e: any) => s + Number(e.amount), 0);
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
+    const expenseDate = fd.get("expense_date") as string;
+    if (!expenseDate) return;
     const values = {
-      expense_date: fd.get("expense_date") as string,
+      expense_date: expenseDate,
       category: fd.get("category") as string,
       vendor: fd.get("vendor") as string,
       description: fd.get("description") as string,
@@ -74,7 +87,11 @@ export default function LdExpensesPage() {
             <DialogHeader><DialogTitle>{editExpense ? "Edit Expense" : "Add Expense"}</DialogTitle></DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
-                <div><Label>Date *</Label><Input name="expense_date" type="date" required defaultValue={editExpense?.expense_date || new Date().toISOString().split("T")[0]} /></div>
+                <div>
+                  <Label>Date *</Label>
+                  <Input name="expense_date" type="date" required defaultValue={editExpense?.expense_date || new Date().toISOString().split("T")[0]} />
+                  <p className="text-[10px] text-muted-foreground mt-0.5">Required — when was this expense incurred?</p>
+                </div>
                 <div>
                   <Label>Category</Label>
                   <select name="category" className="w-full border rounded-md p-2 text-sm bg-background" defaultValue={editExpense?.category || "general"}>
@@ -126,13 +143,33 @@ export default function LdExpensesPage() {
         </Select>
       </div>
 
+      {/* Date range filter */}
+      <div className="flex gap-3 items-end flex-wrap">
+        <div>
+          <Label className="text-xs text-muted-foreground">From Date</Label>
+          <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-[160px]" />
+        </div>
+        <div>
+          <Label className="text-xs text-muted-foreground">To Date</Label>
+          <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-[160px]" />
+        </div>
+        {(dateFrom || dateTo) && (
+          <Button variant="ghost" size="sm" onClick={() => { setDateFrom(""); setDateTo(""); }}>Clear dates</Button>
+        )}
+        <div className="ml-auto text-sm text-muted-foreground">
+          Showing {filtered.length} expense(s) — Total: <span className="font-semibold text-destructive">{fmt(filteredTotal)}</span>
+        </div>
+      </div>
+
       <Card className="border-border/50">
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border/50 bg-muted/30">
-                  <th className="text-left p-3 font-medium text-muted-foreground">Date</th>
+                  <th className="text-left p-3 font-medium text-muted-foreground cursor-pointer select-none" onClick={() => setSortDir(d => d === "asc" ? "desc" : "asc")}>
+                    <span className="flex items-center gap-1">Date <ArrowUpDown className="h-3 w-3" /></span>
+                  </th>
                   <th className="text-left p-3 font-medium text-muted-foreground">Category</th>
                   <th className="text-left p-3 font-medium text-muted-foreground">Vendor</th>
                   <th className="text-left p-3 font-medium text-muted-foreground">Description</th>
@@ -148,7 +185,7 @@ export default function LdExpensesPage() {
                   <tr><td colSpan={7} className="p-8 text-center text-muted-foreground">No expenses found</td></tr>
                 ) : filtered.map((e: any) => (
                   <tr key={e.id} className="border-b border-border/30 hover:bg-muted/20">
-                    <td className="p-3 text-xs">{format(new Date(e.expense_date), "MMM d, yyyy")}</td>
+                    <td className="p-3 text-xs font-medium">{format(new Date(e.expense_date), "MMM d, yyyy")}</td>
                     <td className="p-3"><Badge variant="outline" className="text-[10px] capitalize">{e.category.replace("_", " ")}</Badge></td>
                     <td className="p-3">{e.vendor || "—"}</td>
                     <td className="p-3 text-xs">{e.description || "—"}</td>
