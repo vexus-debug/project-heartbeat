@@ -76,20 +76,33 @@ export default function LdReportsPage() {
     });
   }, [invoices, payments, cases, expenses, months]);
 
-  // A. Product-wise P&L
-  const productPnL = useMemo(() => {
+  // A. Work Type Report — unique by work_type_name, uses unit count (tooth_number)
+  // Feature #3: Clear report based on WORK TYPE NAME only
+  // Feature #5: Uses work_type_name + unit numbers, no repetition
+  const workTypeReport = useMemo(() => {
     const monthCases = cases.filter((c: any) => {
       const d = new Date(c.created_at);
       return d >= selectedMonthStart && d <= selectedMonthEnd;
     });
-    const map: Record<string, { sales: number; count: number }> = {};
-    monthCases.forEach((c: any) => {
+    // Deduplicate by case id
+    const seenIds = new Set<string>();
+    const unique = monthCases.filter((c: any) => { if (seenIds.has(c.id)) return false; seenIds.add(c.id); return true; });
+    
+    const map: Record<string, { totalUnits: number; totalPrice: number; caseCount: number }> = {};
+    unique.forEach((c: any) => {
       const name = c.work_type_name || "Unknown";
-      if (!map[name]) map[name] = { sales: 0, count: 0 };
-      map[name].sales += Number(c.net_amount || 0);
-      map[name].count++;
+      const units = Number(c.tooth_number) || 1;
+      const price = Number(c.net_amount || 0);
+      if (!map[name]) map[name] = { totalUnits: 0, totalPrice: 0, caseCount: 0 };
+      map[name].totalUnits += units;
+      map[name].totalPrice += price;
+      map[name].caseCount++;
     });
-    return Object.entries(map).map(([name, data]) => ({ name, ...data })).sort((a, b) => b.sales - a.sales);
+    return Object.entries(map).map(([name, data]) => ({
+      name,
+      ...data,
+      avgPricePerUnit: data.totalUnits > 0 ? Math.round(data.totalPrice / data.totalUnits) : 0,
+    })).sort((a, b) => b.totalPrice - a.totalPrice);
   }, [cases, selectedMonthStart, selectedMonthEnd]);
 
   // B. Monthly expenses
