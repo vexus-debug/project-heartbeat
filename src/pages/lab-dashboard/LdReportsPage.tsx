@@ -195,7 +195,8 @@ export default function LdReportsPage() {
   const totalCollected = payments.reduce((s: number, p: any) => s + Number(p.amount || 0), 0);
   const totalExpensesAll = expenses.reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
   const totalCreditsAmt = creditNotes.filter((cn: any) => cn.type === "credit").reduce((s: number, cn: any) => s + Number(cn.amount), 0);
-  const totalMonthSales = productPnL.reduce((s, p) => s + p.sales, 0);
+  const totalMonthSales = workTypeReport.reduce((s, p) => s + p.totalPrice, 0);
+  const totalMonthUnits = workTypeReport.reduce((s, p) => s + p.totalUnits, 0);
   const monthGrossProfit = totalMonthSales - totalMonthExpenses;
 
   return (
