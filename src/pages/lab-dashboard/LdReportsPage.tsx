@@ -139,8 +139,8 @@ export default function LdReportsPage() {
   // E. Monthly sales by client - top 5 bold
   const salesByClient = clientSalesReport;
 
-  // F. Monthly sales by product - top 5 bold
-  const salesByProduct = productPnL;
+  // F. Monthly sales by product - top 5 bold (uses workTypeReport)
+  const salesByProduct = workTypeReport;
 
   // Revenue allocation - use custom date range if set, otherwise use selected month
   const allocStart = allocDateFrom || selectedMonthStart;
