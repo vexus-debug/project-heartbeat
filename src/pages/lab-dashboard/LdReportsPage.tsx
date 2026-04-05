@@ -245,44 +245,50 @@ export default function LdReportsPage() {
           <TabsTrigger value="export">Export</TabsTrigger>
         </TabsList>
 
-        {/* A. Product-wise P&L */}
+        {/* A. Work Type Report — Feature #3 & #5 */}
         <TabsContent value="pnl">
           <Card className="border-border/50">
             <CardHeader>
-              <CardTitle className="text-base">Product-wise P&L — {format(selectedMonthStart, "MMMM yyyy")}</CardTitle>
-              <CardDescription>Sales, costs, and net profit by work type</CardDescription>
+              <CardTitle className="text-base">Work Type Report — {format(selectedMonthStart, "MMMM yyyy")}</CardTitle>
+              <CardDescription>Revenue by Work Type Name with unit count (no duplication)</CardDescription>
             </CardHeader>
             <CardContent>
               <table className="w-full text-sm">
                 <thead><tr className="border-b bg-muted/30">
-                  <th className="text-left p-3 font-medium text-muted-foreground">Product</th>
-                  <th className="text-right p-3 font-medium text-muted-foreground">Units</th>
-                  <th className="text-right p-3 font-medium text-muted-foreground">Sales (+)</th>
+                  <th className="text-left p-3 font-medium text-muted-foreground">Work Type</th>
+                  <th className="text-right p-3 font-medium text-muted-foreground">Cases</th>
+                  <th className="text-right p-3 font-medium text-muted-foreground">Total Units</th>
+                  <th className="text-right p-3 font-medium text-muted-foreground">Total Price (₦)</th>
+                  <th className="text-right p-3 font-medium text-muted-foreground">Avg / Unit</th>
                 </tr></thead>
                 <tbody>
-                  {productPnL.map(p => (
+                  {workTypeReport.map(p => (
                     <tr key={p.name} className="border-b border-border/30">
-                      <td className="p-3">{p.name}</td>
-                      <td className="p-3 text-right">{p.count}</td>
-                      <td className="p-3 text-right font-medium text-emerald-600">{fmt(p.sales)}</td>
+                      <td className="p-3 font-medium">{p.name}</td>
+                      <td className="p-3 text-right">{p.caseCount}</td>
+                      <td className="p-3 text-right">{p.totalUnits}</td>
+                      <td className="p-3 text-right text-emerald-600">{fmt(p.totalPrice)}</td>
+                      <td className="p-3 text-right text-muted-foreground">{fmt(p.avgPricePerUnit)}</td>
                     </tr>
                   ))}
-                  {productPnL.length === 0 && <tr><td colSpan={3} className="p-8 text-center text-muted-foreground">No data for this month</td></tr>}
+                  {workTypeReport.length === 0 && <tr><td colSpan={5} className="p-8 text-center text-muted-foreground">No data for this month</td></tr>}
                 </tbody>
                 <tfoot>
                   <tr className="border-t-2 border-border font-semibold">
-                    <td className="p-3">Gross Sales</td>
-                    <td className="p-3 text-right">{productPnL.reduce((s, p) => s + p.count, 0)}</td>
+                    <td className="p-3">Totals</td>
+                    <td className="p-3 text-right">{workTypeReport.reduce((s, p) => s + p.caseCount, 0)}</td>
+                    <td className="p-3 text-right">{totalMonthUnits}</td>
                     <td className="p-3 text-right text-emerald-600">{fmt(totalMonthSales)}</td>
+                    <td className="p-3 text-right text-muted-foreground">{totalMonthUnits > 0 ? fmt(Math.round(totalMonthSales / totalMonthUnits)) : "—"}</td>
                   </tr>
                   <tr className="text-destructive">
                     <td className="p-3">Less: Expenses</td>
-                    <td></td>
+                    <td colSpan={3}></td>
                     <td className="p-3 text-right">-{fmt(totalMonthExpenses)}</td>
                   </tr>
                   <tr className="border-t-2 font-bold text-lg">
                     <td className="p-3">Net Profit / (Loss)</td>
-                    <td></td>
+                    <td colSpan={3}></td>
                     <td className={`p-3 text-right ${monthGrossProfit >= 0 ? "text-emerald-600" : "text-destructive"}`}>
                       {monthGrossProfit >= 0 ? fmt(monthGrossProfit) : `(${fmt(Math.abs(monthGrossProfit))})`}
                     </td>
