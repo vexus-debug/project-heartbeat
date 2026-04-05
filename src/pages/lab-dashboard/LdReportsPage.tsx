@@ -234,7 +234,7 @@ export default function LdReportsPage() {
 
       <Tabs defaultValue="pnl" className="space-y-4">
         <TabsList className="flex flex-wrap">
-          <TabsTrigger value="pnl">Product P&L</TabsTrigger>
+          <TabsTrigger value="pnl">Work Type Report</TabsTrigger>
           <TabsTrigger value="stock-pnl">P&L with Stock</TabsTrigger>
           <TabsTrigger value="expenses">Monthly Expenses</TabsTrigger>
           <TabsTrigger value="client-sales">Client Sales</TabsTrigger>
