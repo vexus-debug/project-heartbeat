@@ -239,7 +239,7 @@ export default function LdReportsPage() {
           <TabsTrigger value="expenses">Monthly Expenses</TabsTrigger>
           <TabsTrigger value="client-sales">Client Sales</TabsTrigger>
           <TabsTrigger value="sales-client">Sales by Client</TabsTrigger>
-          <TabsTrigger value="sales-product">Sales by Product</TabsTrigger>
+          <TabsTrigger value="sales-product">Sales by Work Type</TabsTrigger>
           <TabsTrigger value="revenue-alloc">Revenue Allocation</TabsTrigger>
           <TabsTrigger value="charts">Trend Charts</TabsTrigger>
           <TabsTrigger value="export">Export</TabsTrigger>
